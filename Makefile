@@ -1,4 +1,3 @@
-
 # When processing the rules for tagging and pushing container images with the
 # "latest" tag, the following variable will be the version that is considered
 # to be the latest.
@@ -52,7 +51,7 @@ endif
 
 # The repository and image names default to the official but can be overriden
 # via environment variables.
-REPO_NAME  ?= postgis
+REPO_NAME  ?= odidev
 IMAGE_NAME ?= postgis
 
 DOCKER=docker
@@ -76,11 +75,11 @@ update:
 define build-version
 build-$1:
 ifeq ($(do_default),true)
-	$(DOCKER) build --pull -t $(REPO_NAME)/$(IMAGE_NAME):$(shell echo $1) $1
+	$(DOCKER) buildx build --platform linux/arm64,linux/amd64 -t $(REPO_NAME)/$(IMAGE_NAME):$(shell echo $1) --push $1
 endif
 ifeq ($(do_alpine),true)
 ifneq ("$(wildcard $1/alpine)","")
-	$(DOCKER) build --pull -t $(REPO_NAME)/$(IMAGE_NAME):$(shell echo $1)-alpine $1/alpine
+	$(DOCKER) buildx build --platform linux/arm64,linux/amd64 -t $(REPO_NAME)/$(IMAGE_NAME):$(shell echo $1)-alpine --push $1/alpine
 endif
 endif
 endef
@@ -99,10 +98,12 @@ test: $(foreach version,$(VERSIONS),test-$(version))
 define test-version
 test-$1: test-prepare build-$1
 ifeq ($(do_default),true)
+	$(DOCKER) pull $(REPO_NAME)/$(IMAGE_NAME):$(version)
 	$(OFFIMG_LOCAL_CLONE)/test/run.sh -c $(OFFIMG_LOCAL_CLONE)/test/config.sh -c test/postgis-config.sh $(REPO_NAME)/$(IMAGE_NAME):$(version)
 endif
 ifeq ($(do_alpine),true)
 ifneq ("$(wildcard $1/alpine)","")
+	$(DOCKER) pull $(REPO_NAME)/$(IMAGE_NAME):$(version)-alpine
 	$(OFFIMG_LOCAL_CLONE)/test/run.sh -c $(OFFIMG_LOCAL_CLONE)/test/config.sh -c test/postgis-config.sh $(REPO_NAME)/$(IMAGE_NAME):$(version)-alpine
 endif
 endif
@@ -146,4 +147,3 @@ push-latest: tag-latest $(PUSH_LATEST_DEP)
         $(foreach version,$(VERSIONS),build-$(version)) \
         $(foreach version,$(VERSIONS),test-$(version)) \
         $(foreach version,$(VERSIONS),push-$(version))
-
